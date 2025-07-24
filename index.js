@@ -1,24 +1,20 @@
-// --- استدعاء المكتبات المطلوبة ---
-const { Telegraf, Markup } = require('telegraf'); // مكتبة تيليجرام الأساسية
-const { v4: uuidv4 } = require('uuid');         // لإنشاء معرفات فريدة للرسائل
-const express = require('express');             // لإنشاء خادم ويب (مهم لـ Render و UptimeRobot)
+const { Telegraf, Markup } = require('telegraf');
+const { v4: uuidv4 } = require('uuid');
 
-// --- إعدادات البوت الأساسية ---
-// !! مهم جداً !!
-// أدخل توكن البوت الخاص بك بين علامتي الاقتباس بدلاً من النص الحالي
-const BOT_TOKEN = "7487838353:AAFmFXZ0PzjeFCz3x6rorCMlN_oBBzDyzEQ"; 
-// !! مهم جداً !!
-// استبدل 0 بالـ ID الرقمي الخاص بحسابك (مالك البوت)
-const OWNER_ID = 1749717270;
+// --- إعدادات البوت ---
+// !! مهم !!
+// أدخل توكن البوت الخاص بك بين علامتي الاقتباس
+const BOT_TOKEN = "7487838353:AAFmFXZ0PzjeFCz3x6rorCMlN_oBBzDyzEQ";
+// !! مهم !!
+// استبدل 0 بالـ ID الرقمي الخاص بمالك البوت
+const OWNER_ID = 1749717270; 
 
-// --- التحقق من إدخال القيم ---
-// هذا الكود يتأكد من أنك قمت بتغيير القيم الافتراضية قبل تشغيل البوت
+// التحقق من إدخال القيم
 if (BOT_TOKEN === "ادخل توكن البوت الخاص بك هنا" || OWNER_ID === 0) {
-    console.error("!!! خطأ فادح: يرجى إدخال توكن البوت والـ ID الخاص بالمالك في ملف index.js قبل التشغيل.");
+    console.error("!!! خطأ فادح: يرجى إدخال توكن البوت والـ ID الخاص بالمالك في ملف index.js قبل تشغيل البوت.");
     process.exit(1); // إيقاف التشغيل إذا لم يتم إدخال القيم
 }
 
-// --- إعداد خادم الويب (لضمان عمل البوت 24/7) ---
 const app = express();
 const port = process.env.PORT || 3000; // سيستخدم المنفذ الذي يوفره Render تلقائياً
 
@@ -29,139 +25,188 @@ app.get('/', (req, res) => {
 
 // تشغيل خادم الويب
 app.listen(port, () => {
-  console.log(`خادم الويب يستمع على المنفذ ${port}`);
+  console.log(خادم الويب يستمع على المنفذ ${port});
 });
 
-
-// --- تهيئة البوت ومنطقه الأساسي ---
+// تهيئة البوت
 const bot = new Telegraf(BOT_TOKEN);
 
-// متغير لتخزين الرسائل في الذاكرة المؤقتة
+// تخزين الرسائل في الذاكرة
 const messageStore = {};
 
-// دالة للتحقق مما إذا كان المستخدم هو المالك
+// دالة للتحقق من صلاحية المستخدم
 function isOwner(userId) {
     return userId === OWNER_ID;
 }
 
-// دالة لتنظيف أسماء المستخدمين (إزالة @ وتحويلها لأحرف صغيرة)
+// دالة لتنظيف أسماء المستخدمين
 function cleanUsername(username) {
     return username.toLowerCase().replace('@', '');
 }
 
-// دالة لإنشاء روابط mention للمستخدمين في الرسالة
+// دالة لإنشاء mentions للمستخدمين
 function createMentions(targetUsers) {
     return targetUsers.map(user => {
-        if (/^\d+$/.test(user)) { // إذا كان معرفاً رقمياً
+        if (/^\d+$/.test(user)) {
+            // إذا كان رقم ID
             return `<a href="tg://user?id=${user}">المستخدم ${user}</a>`;
-        } else { // إذا كان اسم مستخدم
+        } else {
+            // إذا كان username
             return `@${user}`;
         }
     }).join(', ');
 }
 
-// --- أوامر البوت ---
-
 // معالج أمر /start
 bot.start((ctx) => {
-    if (!isOwner(ctx.from.id)) return; // يتجاهل الأمر إذا لم يكن من المالك
+    if (!isOwner(ctx.from.id)) {
+        console.log(`تجاهل أمر /start من مستخدم غير مصرح له: ${ctx.from.id}`);
+        return;
+    }
     
+    // تم تحديث رسالة الترحيب لتعكس الفاصل الجديد (-)
     const welcomeMessage = `أهلاً بك في بوت الهمس!
 
-لإرسال رسالة سرية، اذكرني في أي مجموعة بالصيغة التالية:
-\`@اسم_البوت username - الرسالة السرية - الرسالة العامة\`
+لإرسال رسالة سرية في مجموعة، اذكرني في شريط الرسائل بالصيغة التالية:
+\`@اسم_البوت username1,username2 - الرسالة السرية - الرسالة العامة\`
 
-- \`username\`: اسم مستخدم واحد أو أكثر (أو ID) مفصولة بفواصل.
-- \`الرسالة السرية\`: تظهر فقط للمستخدمين المحددين.
-- \`الرسالة العامة\`: تظهر لأي شخص آخر يضغط على الزر.`;
+- استبدل \`username1,username2\` بأسماء المستخدمين أو معرفاتهم (IDs) مفصولة بفواصل.
+- \`الرسالة السرية\` هي النص الذي سيظهر فقط للمستخدمين المحددين.
+- \`الرسالة العامة\` هي النص الذي سيظهر لبقية أعضاء المجموعة عند محاولة قراءة الرسالة.
+- يجب أن يكون طول الرسالة السرية أقل من 200 حرف، والطول الإجمالي أقل من 255 حرفًا.
+
+ملاحظة: لا تحتاج لإضافة البوت إلى المجموعة لاستخدامه.`;
 
     ctx.replyWithMarkdown(welcomeMessage);
 });
 
-// معالج أمر /help (يعرض نفس رسالة البدء)
+// معالج أمر /help
 bot.help((ctx) => {
-    if (!isOwner(ctx.from.id)) return;
-    bot.telegram.sendMessage(ctx.chat.id, (ctx.message.text.replace('/help', '/start')));
+    if (!isOwner(ctx.from.id)) {
+        console.log(`تجاهل أمر /help من مستخدم غير مصرح له: ${ctx.from.id}`);
+        return;
+    }
+    
+    // نفس رسالة /start
+    ctx.telegram.sendMessage(ctx.chat.id, ctx.message.text.replace('/help', '/start'));
 });
 
-
-// --- المنطق الأساسي للبوت (الوضع المضمن) ---
-
+// معالج الاستعلامات المضمنة (Inline Mode)
 bot.on('inline_query', async (ctx) => {
     if (!isOwner(ctx.from.id)) {
-        // رسالة للمستخدمين غير المصرح لهم
-        return await ctx.answerInlineQuery([{
+        console.log(`تجاهل inline query من مستخدم غير مصرح له: ${ctx.from.id}`);
+        
+        const unauthorizedResult = {
             type: 'article',
-            id: 'unauthorized',
-            title: 'ممنوع تستخدم البوت',
+            id: uuidv4(),
+            title: 'عزيزي ما مسموحلك تستخدم البوت',
             description: 'هذا البوت مخصص لمبرمجه عبدالرحمن حسن فقط.',
-            input_message_content: { message_text: 'عزيزي مايصير تستخدم البوت.' }
-        }]);
+            input_message_content: {
+                message_text: 'مايصير تستخدم البوت إلا بتصريح من مبرمجه.'
+            }
+        };
+        
+        try {
+            await ctx.answerInlineQuery([unauthorizedResult], { cache_time: 60 });
+        } catch (error) {
+            console.error(`خطأ في إرسال رسالة عدم التصريح للمستخدم ${ctx.from.id}:`, error);
+        }
+        return;
     }
 
     try {
         const queryText = ctx.inlineQuery.query.trim();
         const senderId = ctx.from.id.toString();
+        const senderUsername = ctx.from.username ? ctx.from.username.toLowerCase() : null;
 
-        // تقسيم النص باستخدام الفاصل "-"
+        // تم تحديث الفاصل هنا من || إلى -
         const parts = queryText.split('-');
         
-        // التحقق من أن الصيغة صحيحة (يجب أن تحتوي على 3 أجزاء على الأقل)
-        if (parts.length < 3) {
-            return await ctx.answerInlineQuery([{
+        if (parts.length < 3) { // نستخدم أقل من 3 للسماح بوجود - داخل الرسائل
+            const errorResult = {
                 type: 'article',
-                id: 'format_error',
-                title: 'خطأ في الصيغة',
-                description: 'الصيغة الصحيحة: مستخدمين - رسالة سرية - رسالة عامة',
-                input_message_content: { message_text: 'صيغة الرسالة غير صحيحة. راجع /help' }
-            }], { cache_time: 1 });
+                id: uuidv4(),
+                title: 'خطأ في التنسيق',
+                // تم تحديث رسالة الخطأ
+                description: 'يرجى استخدام: مستخدمين - رسالة سرية - رسالة عامة',
+                input_message_content: {
+                    message_text: 'تنسيق خاطئ. يرجى مراجعة /help'
+                }
+            };
+            
+            await ctx.answerInlineQuery([errorResult], { cache_time: 1 });
+            return;
         }
 
-        // استخراج الأجزاء المختلفة من النص
+        // إعادة تجميع الأجزاء بشكل صحيح للسماح بوجود "-" في الرسائل
         const targetUsersStr = parts[0].trim();
-        const publicMessage = parts.pop().trim();
-        const secretMessage = parts.slice(1).join('-').trim();
+        const publicMessage = parts.pop().trim(); // الجزء الأخير هو الرسالة العامة
+        const secretMessage = parts.slice(1).join('-').trim(); // كل ما في الوسط هو الرسالة السرية
 
-        // التحقق من أن أي جزء ليس فارغاً
-        if (!targetUsersStr || !secretMessage || !publicMessage) {
-             return await ctx.answerInlineQuery([{
+        // التحقق من طول الرسائل
+        if (secretMessage.length >= 200 || queryText.length >= 255) {
+            const lengthErrorResult = {
                 type: 'article',
-                id: 'empty_error',
-                title: 'خطأ: أحد الحقول فارغ',
-                description: 'تأكد من ملء جميع الأجزاء: المستخدمين، الرسالة السرية، والعامة.',
-                input_message_content: { message_text: 'أحد الحقول فارغ. يرجى مراجعة /help' }
-            }], { cache_time: 1 });
+                id: uuidv4(),
+                title: 'خطأ: الرسالة طويلة جدًا',
+                description: `السرية: ${secretMessage.length}/199, الإجمالي: ${queryText.length}/254`,
+                input_message_content: {
+                    message_text: 'الرسالة طويلة جدًا. يرجى مراجعة /help'
+                }
+            };
+            
+            await ctx.answerInlineQuery([lengthErrorResult], { cache_time: 1 });
+            return;
         }
 
-        // معالجة قائمة المستخدمين المستهدفين
-        const targetUsers = targetUsersStr.split(',').map(user => cleanUsername(user.trim())).filter(Boolean);
+        // تنظيف قائمة المستخدمين المستهدفين
+        const targetUsers = targetUsersStr.split(',')
+            .map(user => cleanUsername(user.trim()))
+            .filter(user => user.length > 0);
 
         if (targetUsers.length === 0) {
-            return await ctx.answerInlineQuery([{
+            const noUsersResult = {
                 type: 'article',
-                id: 'no_users_error',
+                id: uuidv4(),
                 title: 'خطأ: لم يتم تحديد مستخدمين',
-                input_message_content: { message_text: 'يجب تحديد مستخدم واحد على الأقل.' }
-            }], { cache_time: 1 });
+                description: 'يجب تحديد مستخدم واحد على الأقل.',
+                input_message_content: {
+                    message_text: 'لم يتم تحديد مستخدمين. يرجى مراجعة /help'
+                }
+            };
+            
+            await ctx.answerInlineQuery([noUsersResult], { cache_time: 1 });
+            return;
         }
 
-        // إنشاء معرف فريد وتخزين بيانات الرسالة
-        const msgId = uuidv4();
-        messageStore[msgId] = { senderId, targetUsers, secretMessage, publicMessage };
+        // إنشاء mentions للمستخدمين
+        const mentionsStr = createMentions(targetUsers);
 
-        // إنشاء الزر الذي سيظهر تحت الرسالة
+        // إنشاء معرف فريد للرسالة وتخزينها
+        const msgId = uuidv4();
+        messageStore[msgId] = {
+            senderId: senderId,
+            senderUsername: senderUsername,
+            targetUsers: targetUsers,
+            secretMessage: secretMessage,
+            publicMessage: publicMessage
+        };
+
+        console.log(`تم تخزين الرسالة ${msgId}:`, messageStore[msgId]);
+
+        // إنشاء الزر المضمن
         const keyboard = Markup.inlineKeyboard([
-            Markup.button.callback('🔒 إظهار الرسالة', `whisper_${msgId}`)
+            Markup.button.callback('إظهار الرد الذكي', `whisper_${msgId}`)
         ]);
-        
-        // تجهيز النتيجة لإرسالها
+
+        // إنشاء نتيجة الاستعلام المضمن
         const result = {
             type: 'article',
             id: msgId,
             title: 'رسالة همس جاهزة للإرسال',
             description: `موجهة إلى: ${targetUsers.join(', ')}`,
             input_message_content: {
-                message_text: `رسالة همس موجهة إلى ${createMentions(targetUsers)}.\n\nاضغط على الزر أدناه لقراءة الرسالة.`,
+                message_text: `تم كتابة الرد عبر الصوت لـ ${mentionsStr}\n\nعزيزي/تي دوس على الزر حتى تشوف`,
                 parse_mode: 'HTML'
             },
             reply_markup: keyboard.reply_markup
@@ -170,50 +215,74 @@ bot.on('inline_query', async (ctx) => {
         await ctx.answerInlineQuery([result], { cache_time: 1 });
 
     } catch (error) {
-        console.error('خطأ في معالج inline_query:', error);
+        console.error('خطأ في معالج inline:', error);
     }
 });
 
-// معالج الضغط على الأزرار
+// معالج ردود الأزرار المضمنة (Callback Query)
 bot.action(/^whisper_(.+)$/, async (ctx) => {
     try {
         const msgId = ctx.match[1];
         const clickerId = ctx.from.id.toString();
-        const clickerUsername = ctx.from.username ? cleanUsername(ctx.from.username) : null;
-        
+        const clickerUsername = ctx.from.username ? ctx.from.username.toLowerCase() : null;
+
+        console.log(`تم استلام callback للرسالة: ${msgId} من المستخدم: ${clickerId} (@${clickerUsername})`);
+
         const messageData = messageStore[msgId];
 
         if (!messageData) {
-            return await ctx.answerCbQuery('عذراً، هذه الرسالة لم تعد متوفرة أو منتهية الصلاحية.', { show_alert: true });
+            await ctx.answerCbQuery('عذراً، هذه الرسالة لم تعد متوفرة أو انتهت صلاحيتها.', { show_alert: true });
+            console.warn(`معرف الرسالة ${msgId} غير موجود في المخزن.`);
+            return;
         }
 
-        // التحقق مما إذا كان المستخدم الحالي مصرح له برؤية الرسالة السرية
-        const isAuthorized = messageData.senderId === clickerId ||
-                             messageData.targetUsers.includes(clickerId) ||
-                             (clickerUsername && messageData.targetUsers.includes(clickerUsername));
+        let isAuthorized = false;
+        
+        if (clickerId === messageData.senderId) {
+            isAuthorized = true;
+        } else {
+            for (const target of messageData.targetUsers) {
+                if (target === clickerId || (clickerUsername && target === clickerUsername)) {
+                    isAuthorized = true;
+                    break;
+                }
+            }
+        }
+
+        console.log(`حالة التصريح للمستخدم ${clickerId} للرسالة ${msgId}: ${isAuthorized}`);
 
         if (isAuthorized) {
-            await ctx.answerCbQuery(messageData.secretMessage, { show_alert: true });
+            let messageToShow = messageData.secretMessage;
+            messageToShow += `\n\n(ملاحظة بقية الطلاب يشوفون هاي الرسالة مايشوفون الرسالة الفوگ: '${messageData.publicMessage}')`;
+            
+            if (messageToShow.length > 200) {
+                messageToShow = messageData.secretMessage.substring(0, 150) + '... (الرسالة أطول من اللازم للعرض الكامل هنا)';
+            }
+            
+            await ctx.answerCbQuery(messageToShow, { show_alert: true });
+            console.log(`تم عرض الرسالة السرية للرسالة ${msgId} للمستخدم ${clickerId}`);
         } else {
             await ctx.answerCbQuery(messageData.publicMessage, { show_alert: true });
+            console.log(`تم عرض الرسالة العامة للرسالة ${msgId} للمستخدم ${clickerId}`);
         }
+
     } catch (error) {
-        console.error('خطأ في معالج bot.action:', error);
-        await ctx.answerCbQuery('حدث خطأ ما.', { show_alert: true });
+        console.error('خطأ في معالج callback:', error);
+        await ctx.answerCbQuery('حدث خطأ ما أثناء معالجة طلبك.', { show_alert: true });
     }
 });
 
-// --- تشغيل البوت ---
-console.log('جاري بدء تشغيل البوت...');
+// بدء تشغيل البوت
+console.log('بدء تشغيل البوت...');
 bot.launch()
     .then(() => {
-        console.log('تم تشغيل البوت بنجاح ويعمل الآن!');
+        console.log('تم تشغيل البوت بنجاح!');
     })
     .catch((error) => {
-        console.error('فشل تشغيل البوت:', error);
+        console.error('خطأ في تشغيل البوت:', error);
     });
 
-// التعامل مع إيقاف البوت بشكل صحيح لضمان عدم حدوث أخطاء
-process.once('SIGINT', () => { bot.stop('SIGINT'); process.exit(0); });
-process.once('SIGTERM', () => { bot.stop('SIGTERM'); process.exit(0); });
+// التعامل مع إيقاف البوت بشكل صحيح
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
 
