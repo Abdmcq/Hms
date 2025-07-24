@@ -4,16 +4,17 @@ const express = require('express');
 
 // --- إعدادات البوت ---
 // !! مهم !!
-// أدخل توكن البوت الخاص بك بين علامتي الاقتباس
-const BOT_TOKEN = "7487838353:AAFmFXZ0PzjeFCz3x6rorCMlN_oBBzDyzEQ";
-// !! مهم !!
-// استبدل 0 بالـ ID الرقمي الخاص بمالك البوت
-const OWNER_ID = 1749717270;
+// يتم الآن قراءة التوكن والـ ID من متغيرات البيئة (Environment Variables)
+// يجب عليك تعيين متغيرين في بيئة التشغيل (مثل إعدادات Render أو Heroku):
+// 1. BOT_TOKEN: يحتوي على توكن البوت الخاص بك
+// 2. OWNER_ID: يحتوي على الـ ID الرقمي الخاص بك
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const OWNER_ID = process.env.OWNER_ID;
 
-// التحقق من إدخال القيم
-if (BOT_TOKEN === "ادخل توكن البوت الخاص بك هنا" || OWNER_ID === 0) {
-    console.error("!!! خطأ فادح: يرجى إدخال توكن البوت والـ ID الخاص بالمالك في ملف index.js قبل تشغيل البوت.");
-    process.exit(1); // إيقاف التشغيل إذا لم يتم إدخال القيم
+// التحقق من وجود المتغيرات
+if (!BOT_TOKEN || !OWNER_ID) {
+    console.error("!!! خطأ فادح: يرجى تعيين متغيرات البيئة BOT_TOKEN و OWNER_ID قبل تشغيل البوت.");
+    process.exit(1); // إيقاف التشغيل إذا لم يتم توفير المتغيرات
 }
 
 const app = express();
@@ -26,7 +27,6 @@ app.get('/', (req, res) => {
 
 // تشغيل خادم الويب
 app.listen(port, () => {
-  // تم تصحيح هذا السطر بإضافة علامات `
   console.log(`خادم الويب يستمع على المنفذ ${port}`);
 });
 
@@ -38,7 +38,8 @@ const messageStore = {};
 
 // دالة للتحقق من صلاحية المستخدم
 function isOwner(userId) {
-    return userId === OWNER_ID;
+    // نقوم بتحويل OWNER_ID إلى رقم للمقارنة الصحيحة
+    return userId === parseInt(OWNER_ID, 10);
 }
 
 // دالة لتنظيف أسماء المستخدمين
@@ -66,7 +67,6 @@ bot.start((ctx) => {
         return;
     }
     
-    // تم تحديث رسالة الترحيب لتعكس الفاصل الجديد (-)
     const welcomeMessage = `أهلاً بك في بوت الهمس!
 
 لإرسال رسالة سرية في مجموعة، اذكرني في شريط الرسائل بالصيغة التالية:
@@ -90,7 +90,7 @@ bot.help((ctx) => {
     }
     
     // نفس رسالة /start
-    ctx.telegram.sendMessage(ctx.chat.id, ctx.message.text.replace('/help', '/start'));
+    bot.telegram.sendMessage(ctx.chat.id, 'للمساعدة، يرجى مراجعة التعليمات التي تظهر مع أمر /start.');
 });
 
 // معالج الاستعلامات المضمنة (Inline Mode)
@@ -101,10 +101,10 @@ bot.on('inline_query', async (ctx) => {
         const unauthorizedResult = {
             type: 'article',
             id: uuidv4(),
-            title: 'عزيزي ما مسموحلك تستخدم البوت',
+            title: 'عزيزي تحتاج الى اذن حتى تستخدم البوت',
             description: 'هذا البوت مخصص لمبرمجه عبدالرحمن حسن فقط.',
             input_message_content: {
-                message_text: 'مايصير تستخدم البوت إلا بتصريح من مبرمجه.'
+                message_text: 'عزيزي/تي ماتكدرون تستخدمونو إلا بموافقة مبرمجه.'
             }
         };
         
@@ -121,18 +121,16 @@ bot.on('inline_query', async (ctx) => {
         const senderId = ctx.from.id.toString();
         const senderUsername = ctx.from.username ? ctx.from.username.toLowerCase() : null;
 
-        // تم تحديث الفاصل هنا من || إلى -
         const parts = queryText.split('-');
         
-        if (parts.length < 3) { // نستخدم أقل من 3 للسماح بوجود - داخل الرسائل
+        if (parts.length < 3) {
             const errorResult = {
                 type: 'article',
                 id: uuidv4(),
                 title: 'خطأ في التنسيق',
-                // تم تحديث رسالة الخطأ
                 description: 'يرجى استخدام: مستخدمين - رسالة سرية - رسالة عامة',
                 input_message_content: {
-                    message_text: 'تنسيق خاطئ. يرجى مراجعة /help'
+                    message_text: 'تنسيق خاطئ. يرجى مراجعة /start للحصول على التعليمات.'
                 }
             };
             
@@ -140,12 +138,10 @@ bot.on('inline_query', async (ctx) => {
             return;
         }
 
-        // إعادة تجميع الأجزاء بشكل صحيح للسماح بوجود "-" في الرسائل
         const targetUsersStr = parts[0].trim();
-        const publicMessage = parts.pop().trim(); // الجزء الأخير هو الرسالة العامة
-        const secretMessage = parts.slice(1).join('-').trim(); // كل ما في الوسط هو الرسالة السرية
+        const publicMessage = parts.pop().trim();
+        const secretMessage = parts.slice(1).join('-').trim();
 
-        // التحقق من طول الرسائل
         if (secretMessage.length >= 200 || queryText.length >= 255) {
             const lengthErrorResult = {
                 type: 'article',
@@ -153,7 +149,7 @@ bot.on('inline_query', async (ctx) => {
                 title: 'خطأ: الرسالة طويلة جدًا',
                 description: `السرية: ${secretMessage.length}/199, الإجمالي: ${queryText.length}/254`,
                 input_message_content: {
-                    message_text: 'الرسالة طويلة جدًا. يرجى مراجعة /help'
+                    message_text: 'الرسالة طويلة جدًا. يرجى تقصيرها.'
                 }
             };
             
@@ -161,7 +157,6 @@ bot.on('inline_query', async (ctx) => {
             return;
         }
 
-        // تنظيف قائمة المستخدمين المستهدفين
         const targetUsers = targetUsersStr.split(',')
             .map(user => cleanUsername(user.trim()))
             .filter(user => user.length > 0);
@@ -173,7 +168,7 @@ bot.on('inline_query', async (ctx) => {
                 title: 'خطأ: لم يتم تحديد مستخدمين',
                 description: 'يجب تحديد مستخدم واحد على الأقل.',
                 input_message_content: {
-                    message_text: 'لم يتم تحديد مستخدمين. يرجى مراجعة /help'
+                    message_text: 'لم يتم تحديد مستخدمين. يرجى تحديد مستخدم واحد على الأقل.'
                 }
             };
             
@@ -181,10 +176,7 @@ bot.on('inline_query', async (ctx) => {
             return;
         }
 
-        // إنشاء mentions للمستخدمين
         const mentionsStr = createMentions(targetUsers);
-
-        // إنشاء معرف فريد للرسالة وتخزينها
         const msgId = uuidv4();
         messageStore[msgId] = {
             senderId: senderId,
@@ -196,19 +188,17 @@ bot.on('inline_query', async (ctx) => {
 
         console.log(`تم تخزين الرسالة ${msgId}:`, messageStore[msgId]);
 
-        // إنشاء الزر المضمن
         const keyboard = Markup.inlineKeyboard([
-            Markup.button.callback('إظهار الرد الذكي', `whisper_${msgId}`)
+            Markup.button.callback('إظهار الرسالة', `whisper_${msgId}`)
         ]);
 
-        // إنشاء نتيجة الاستعلام المضمن
         const result = {
             type: 'article',
             id: msgId,
             title: 'رسالة همس جاهزة للإرسال',
             description: `موجهة إلى: ${targetUsers.join(', ')}`,
             input_message_content: {
-                message_text: `تم كتابة الرد عبر الصوت لـ ${mentionsStr}\n\nعزيزي/تي دوس على الزر حتى تشوف`,
+                message_text: `رسالة همس موجهة إلى ${mentionsStr}\n\nاضغط على الزر أدناه لقراءة الرسالة.`,
                 parse_mode: 'HTML'
             },
             reply_markup: keyboard.reply_markup
@@ -254,11 +244,10 @@ bot.action(/^whisper_(.+)$/, async (ctx) => {
         console.log(`حالة التصريح للمستخدم ${clickerId} للرسالة ${msgId}: ${isAuthorized}`);
 
         if (isAuthorized) {
-            let messageToShow = messageData.secretMessage;
-            messageToShow += `\n\n(ملاحظة بقية الطلاب يشوفون هاي الرسالة مايشوفون الرسالة الفوگ: '${messageData.publicMessage}')`;
+            let messageToShow = `الرسالة السرية لك:\n\n${messageData.secretMessage}`;
             
             if (messageToShow.length > 200) {
-                messageToShow = messageData.secretMessage.substring(0, 150) + '... (الرسالة أطول من اللازم للعرض الكامل هنا)';
+                messageToShow = messageData.secretMessage.substring(0, 180) + '...';
             }
             
             await ctx.answerCbQuery(messageToShow, { show_alert: true });
