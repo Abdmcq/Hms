@@ -1,13 +1,14 @@
 const { Telegraf, Markup } = require('telegraf');
 const { v4: uuidv4 } = require('uuid');
-const express = require('express');   
+const express = require('express');
+
 // --- إعدادات البوت ---
 // !! مهم !!
 // أدخل توكن البوت الخاص بك بين علامتي الاقتباس
 const BOT_TOKEN = "7487838353:AAFmFXZ0PzjeFCz3x6rorCMlN_oBBzDyzEQ";
 // !! مهم !!
 // استبدل 0 بالـ ID الرقمي الخاص بمالك البوت
-const OWNER_ID = 1749717270; 
+const OWNER_ID = 1749717270;
 
 // التحقق من إدخال القيم
 if (BOT_TOKEN === "ادخل توكن البوت الخاص بك هنا" || OWNER_ID === 0) {
@@ -25,7 +26,8 @@ app.get('/', (req, res) => {
 
 // تشغيل خادم الويب
 app.listen(port, () => {
-  console.log(خادم الويب يستمع على المنفذ ${port});
+  // تم تصحيح هذا السطر بإضافة علامات `
+  console.log(`خادم الويب يستمع على المنفذ ${port}`);
 });
 
 // تهيئة البوت
