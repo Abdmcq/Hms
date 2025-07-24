@@ -1,0 +1,27 @@
+{
+  "name": "telegram-whisper-bot-render",
+  "version": "1.0.1",
+  "description": "بوت تليجرام للرسائل السرية جاهز للرفع على Render",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "whisper",
+    "render",
+    "uptime"
+  ],
+  "author": "Your Name",
+  "license": "ISC",
+  "dependencies": {
+    "telegraf": "^4.15.6",
+    "uuid": "^9.0.1",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}
+
