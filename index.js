@@ -197,17 +197,19 @@ bot.on('inline_query', async (ctx) => {
 });
 
 // معالج ردود الأزرار المضمنة (Callback Query)
+// معالج ردود الأزرار المضمنة (Callback Query)
 bot.action(/^whisper_(.+)$/, async (ctx) => {
     try {
         const msgId = ctx.match[1];
         const clickerId = ctx.from.id.toString();
         const clickerUsername = ctx.from.username ? ctx.from.username.toLowerCase() : null;
 
-        // **الجديد هنا: البحث عن الرسالة في قاعدة البيانات**
+        // **البحث عن الرسالة في قاعدة البيانات**
         const messageData = await Whisper.findOne({ messageId: msgId });
 
         if (!messageData) {
-            return await ctx.answerCbQuery('عزيزي/تي هاي الرسالة تم قرائتها او انتهت صلاحيتها ونحذفت, { show_alert: true });
+            // -- هذا هو السطر الذي تم تصحيحه --
+            return await ctx.answerCbQuery('عزيزي/تي هاي الرسالة تم قرائتها او انتهت صلاحيتها ونحذفت.', { show_alert: true });
         }
 
         const isAuthorized = messageData.senderId === clickerId || 
@@ -220,7 +222,7 @@ bot.action(/^whisper_(.+)$/, async (ctx) => {
             
             await ctx.answerCbQuery(messageToShow, { show_alert: true });
             
-            // **الجديد هنا: حذف الرسالة بعد قراءتها**
+            // **حذف الرسالة بعد قراءتها**
             await Whisper.deleteOne({ messageId: msgId });
             console.log(`تم عرض وحذف الرسالة ${msgId} للمستخدم ${clickerId}`);
 
