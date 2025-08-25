@@ -1,7 +1,7 @@
 {
-  "name": "telegram-whisper-bot-render",
-  "version": "1.0.1",
-  "description": "بوت تليجرام للرسائل السرية جاهز للرفع على Render",
+  "name": "telegram-whisper-bot-mongodb",
+  "version": "1.1.0",
+  "description": "بوت تليجرام للرسائل السرية (تُقرأ مرة واحدة) مع تخزين MongoDB وجاهز للرفع على Render",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -11,17 +11,18 @@
     "bot",
     "whisper",
     "render",
-    "uptime"
+    "mongodb",
+    "mongoose"
   ],
   "author": "Your Name",
   "license": "ISC",
   "dependencies": {
-    "telegraf": "^4.15.6",
+    "telegraf": "^4.16.3",
     "uuid": "^9.0.1",
-    "express": "^4.18.2"
+    "express": "^4.19.2",
+    "mongoose": "^8.4.1"
   },
   "engines": {
     "node": "18.x"
   }
 }
-
