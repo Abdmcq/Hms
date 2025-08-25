@@ -197,7 +197,7 @@ bot.on('inline_query', async (ctx) => {
 
         // إنشاء الزر المضمن
         const keyboard = Markup.inlineKeyboard([
-            Markup.button.callback('إظهار الرد الذكي', `whisper_${msgId}`)
+            Markup.button.callback('إظهار الرد', `whisper_${msgId}`)
         ]);
 
         // إنشاء نتيجة الاستعلام المضمن
@@ -207,7 +207,7 @@ bot.on('inline_query', async (ctx) => {
             title: 'رسالة همس جاهزة للإرسال',
             description: `موجهة إلى: ${targetUsers.join(', ')}`,
             input_message_content: {
-                message_text: `تم كتابة الرد عبر الصوت لـ ${mentionsStr}\n\nعزيزي/تي دوس على الزر حتى تشوف`,
+                message_text: `تم كتابة الرد لـ ${mentionsStr}\n\nعزيزي/تي دوس على الزر حتى تشوف`,
                 parse_mode: 'HTML'
             },
             reply_markup: keyboard.reply_markup
@@ -254,7 +254,7 @@ bot.action(/^whisper_(.+)$/, async (ctx) => {
 
         if (isAuthorized) {
             let messageToShow = messageData.secretMessage;
-            messageToShow += `\n\n(ملاحظة:الرسالة الي قريتها فوك هاي محد يشوفها غيرك لانها سرية اما هاي فكلها تشوفها: '${messageData.publicMessage}')`;
+            messageToShow += `\n\n(ملاحظة:الرسالة الي قريتها فوك هاي محد يشوفها غيرك لانها سرية اما هاي اللي بين قوسين فكلها تشوفها: '${messageData.publicMessage}')`;
             
             if (messageToShow.length > 200) {
                 messageToShow = messageData.secretMessage.substring(0, 150) + '... (الرسالة أطول من اللازم للعرض الكامل هنا)';
