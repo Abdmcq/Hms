@@ -198,7 +198,7 @@ bot.action(/^whisper_(.+)$/, async (ctx) => {
                 const publicPart = messageData.publicMessage;
                 
                 // إنشاء الرسالة المدمجة (السرية + العامة)
-                const fullMessageToShow = `🤫 هاي الرسالة سرية بس انت تشوفها بقية الطلاب لا :\n"${secretPart}"\n\n---\n\n📢 الرسالة العامة (اللي الكل يشوفها بدل الرسالة السرية):\n"${publicPart}"\n\n`;
+                const fullMessageToShow = `🤫 هاي الرسالة سرية بس انت تشوفها بقية الطلاب لا :\n${secretPart}\n\n---\n\n📢 الرسالة العامة (اللي الكل يشوفها بدل الرسالة السرية):\n${publicPart}\n\n`;
 
                 await ctx.answerCbQuery(fullMessageToShow, { show_alert: true });
                 
@@ -208,7 +208,7 @@ bot.action(/^whisper_(.+)$/, async (ctx) => {
 
             } else {
                 // الرسالة السرية قد قُرأت بالفعل
-                await ctx.answerCbQuery(`تمت قراءة الجزء الخاص من هذه الرسالة مسبقاً.\n\nالرسالة العامة المتبقية هي:\n"${messageData.publicMessage}"`, { show_alert: true });
+                await ctx.answerCbQuery(`...\n\nالرسالة العامة :\n"${messageData.publicMessage}"`, { show_alert: true });
             }
         } else {
             // المستخدم غير مصرح له، يرى الرسالة العامة فقط
