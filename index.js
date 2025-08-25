@@ -1,42 +1,61 @@
+// --- استدعاء المكتبات ---
 const { Telegraf, Markup } = require('telegraf');
 const { v4: uuidv4 } = require('uuid');
-const express = require('express'); // تمت إضافة السطر هذا لتعريف express
+const express = require('express');
+const mongoose = require('mongoose');
 
-// --- إعدادات البوت ---
+// --- إعدادات البوت ومتغيرات البيئة ---
 // !! مهم !!
-// يتم الآن قراءة التوكن والـ ID من متغيرات البيئة (Environment Variables)
+// يتم الآن قراءة كل الإعدادات من متغيرات البيئة (Environment Variables)
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const OWNER_ID = process.env.OWNER_ID; 
+const OWNER_ID = process.env.OWNER_ID;
+const MONGO_URI = process.env.MONGO_URI; // الرابط لقاعدة بيانات MongoDB
 
-// التحقق من وجود المتغيرات
-if (!BOT_TOKEN || !OWNER_ID) {
-    console.error("!!! خطأ فادح: يرجى تعيين متغيرات البيئة BOT_TOKEN و OWNER_ID قبل تشغيل البوت.");
+// التحقق من وجود المتغيرات الأساسية
+if (!BOT_TOKEN || !OWNER_ID || !MONGO_URI) {
+    console.error("!!! خطأ فادح: يرجى تعيين متغيرات البيئة BOT_TOKEN, OWNER_ID, و MONGO_URI قبل تشغيل البوت.");
     process.exit(1); // إيقاف التشغيل إذا لم يتم توفير المتغيرات
 }
 
+// --- إعداد خادم الويب (للاستضافة على Render) ---
 const app = express();
-const port = process.env.PORT || 3000; // سيستخدم المنفذ الذي يوفره Render تلقائياً
-
-// هذا هو المسار الذي سيقوم UptimeRobot بزيارته بشكل دوري
+const port = process.env.PORT || 3000;
 app.get('/', (req, res) => {
   res.status(200).send('البوت يعمل بشكل سليم. خادم الويب جاهز.');
 });
-
-// تشغيل خادم الويب
 app.listen(port, () => {
-  // تم تصحيح صياغة الرسالة هنا
   console.log(`خادم الويب يستمع على المنفذ ${port}`);
 });
 
-// تهيئة البوت
+// --- الاتصال بقاعدة البيانات MongoDB ---
+mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+    .then(() => console.log('تم الاتصال بنجاح بقاعدة بيانات MongoDB.'))
+    .catch(err => {
+        console.error('!!! خطأ في الاتصال بقاعدة البيانات:', err);
+        process.exit(1);
+    });
+
+// --- تعريف نموذج (Schema) الرسائل لقاعدة البيانات ---
+const whisperSchema = new mongoose.Schema({
+    messageId: { type: String, required: true, unique: true },
+    senderId: { type: String, required: true },
+    senderUsername: { type: String },
+    targetUsers: { type: [String], required: true },
+    secretMessage: { type: String, required: true },
+    publicMessage: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now, expires: '1d' } // حذف الرسالة تلقائياً بعد يوم واحد
+});
+
+const Whisper = mongoose.model('Whisper', whisperSchema);
+
+
+// --- تهيئة البوت ---
 const bot = new Telegraf(BOT_TOKEN);
 
-// تخزين الرسائل في الذاكرة
-const messageStore = {};
+// --- الدوال المساعدة ---
 
-// دالة للتحقق من صلاحية المستخدم
+// دالة للتحقق من صلاحية المستخدم (المالك)
 function isOwner(userId) {
-    // نقوم بتحويل OWNER_ID إلى رقم للمقارنة الصحيحة لأنه يأتي كنص من متغيرات البيئة
     return userId === parseInt(OWNER_ID, 10);
 }
 
@@ -49,70 +68,46 @@ function cleanUsername(username) {
 function createMentions(targetUsers) {
     return targetUsers.map(user => {
         if (/^\d+$/.test(user)) {
-            // إذا كان رقم ID
             return `<a href="tg://user?id=${user}">المستخدم ${user}</a>`;
         } else {
-            // إذا كان username
             return `@${user}`;
         }
     }).join(', ');
 }
 
+// --- معالجات أوامر البوت ---
+
 // معالج أمر /start
 bot.start((ctx) => {
-    if (!isOwner(ctx.from.id)) {
-        console.log(`تجاهل أمر /start من مستخدم غير مصرح له: ${ctx.from.id}`);
-        return;
-    }
+    if (!isOwner(ctx.from.id)) return;
     
-    // تم تحديث رسالة الترحيب لتعكس الفاصل الجديد (-)
-    const welcomeMessage = `أهلاً بك في بوت الهمس!
+    const welcomeMessage = `أهلاً بك في بوت الهمس المطور!
 
-لإرسال رسالة سرية في مجموعة، اذكرني في شريط الرسائل بالصيغة التالية:
+لإرسال رسالة سرية تُقرأ لمرة واحدة فقط، اذكرني بالصيغة التالية:
 \`@اسم_البوت username1,username2 - الرسالة السرية - الرسالة العامة\`
 
-- استبدل \`username1,username2\` بأسماء المستخدمين أو معرفاتهم (IDs) مفصولة بفواصل.
-- \`الرسالة السرية\` هي النص الذي سيظهر فقط للمستخدمين المحددين.
-- \`الرسالة العامة\` هي النص الذي سيظهر لبقية أعضاء المجموعة عند محاولة قراءة الرسالة.
-- يجب أن يكون طول الرسالة السرية أقل من 200 حرف، والطول الإجمالي أقل من 255 حرفًا.
+- **المستخدمين**: أسماء المستخدمين أو معرفاتهم (IDs) مفصولة بفواصل.
+- **الرسالة السرية**: النص الذي سيراه المستخدمون المختارون فقط (لمرة واحدة).
+- **الرسالة العامة**: النص الذي سيراه أي شخص آخر.
+- يجب أن يكون طول الرسالة السرية أقل من 200 حرف، والإجمالي أقل من 255 حرفًا.
 
-ملاحظة: لا تحتاج لإضافة البوت إلى المجموعة لاستخدامه.`;
+ملاحظة: البوت يعمل الآن مع قاعدة بيانات، والرسائل تُحذف بعد القراءة أو بعد مرور 24 ساعة.`;
 
     ctx.replyWithMarkdown(welcomeMessage);
 });
 
-// معالج أمر /help
-bot.help((ctx) => {
-    if (!isOwner(ctx.from.id)) {
-        console.log(`تجاهل أمر /help من مستخدم غير مصرح له: ${ctx.from.id}`);
-        return;
-    }
-    
-    // نفس رسالة /start
-    ctx.telegram.sendMessage(ctx.chat.id, ctx.message.text.replace('/help', '/start'));
-});
 
 // معالج الاستعلامات المضمنة (Inline Mode)
 bot.on('inline_query', async (ctx) => {
     if (!isOwner(ctx.from.id)) {
-        console.log(`تجاهل inline query من مستخدم غير مصرح له: ${ctx.from.id}`);
-        
         const unauthorizedResult = {
             type: 'article',
             id: uuidv4(),
-            title: 'عزيزي ما مسموحلك تستخدم البوت',
-            description: 'هذا البوت مخصص لمبرمجه عبدالرحمن حسن فقط.',
-            input_message_content: {
-                message_text: 'مايصير تستخدم البوت إلا بتصريح من مبرمجه.'
-            }
+            title: 'عزيزي/تي البوت يعمل فقط عند عبدالرحمن حسن',
+            description: 'استخدام هذا البوت مخصص للمطور عبدالرحمن حسن فقط.',
+            input_message_content: { message_text: 'عيني ماعدكم صلاحية استخدام البوت' }
         };
-        
-        try {
-            await ctx.answerInlineQuery([unauthorizedResult], { cache_time: 60 });
-        } catch (error) {
-            console.error(`خطأ في إرسال رسالة عدم التصريح للمستخدم ${ctx.from.id}:`, error);
-        }
-        return;
+        return await ctx.answerInlineQuery([unauthorizedResult], { cache_time: 60 });
     }
 
     try {
@@ -120,47 +115,34 @@ bot.on('inline_query', async (ctx) => {
         const senderId = ctx.from.id.toString();
         const senderUsername = ctx.from.username ? ctx.from.username.toLowerCase() : null;
 
-        // تم تحديث الفاصل هنا من || إلى -
         const parts = queryText.split('-');
         
-        if (parts.length < 3) { // نستخدم أقل من 3 للسماح بوجود - داخل الرسائل
+        if (parts.length < 3) {
             const errorResult = {
                 type: 'article',
                 id: uuidv4(),
                 title: 'خطأ في التنسيق',
-                // تم تحديث رسالة الخطأ
-                description: 'يرجى استخدام: مستخدمين - رسالة سرية - رسالة عامة',
-                input_message_content: {
-                    message_text: 'تنسيق خاطئ. يرجى مراجعة /help'
-                }
+                description: 'استخدم: مستخدمين - رسالة سرية - رسالة عامة',
+                input_message_content: { message_text: 'تنسيق خاطئ. يرجى مراجعة /start' }
             };
-            
-            await ctx.answerInlineQuery([errorResult], { cache_time: 1 });
-            return;
+            return await ctx.answerInlineQuery([errorResult], { cache_time: 1 });
         }
 
-        // إعادة تجميع الأجزاء بشكل صحيح للسماح بوجود "-" في الرسائل
         const targetUsersStr = parts[0].trim();
-        const publicMessage = parts.pop().trim(); // الجزء الأخير هو الرسالة العامة
-        const secretMessage = parts.slice(1).join('-').trim(); // كل ما في الوسط هو الرسالة السرية
+        const publicMessage = parts.pop().trim();
+        const secretMessage = parts.slice(1).join('-').trim();
 
-        // التحقق من طول الرسائل
         if (secretMessage.length >= 200 || queryText.length >= 255) {
             const lengthErrorResult = {
                 type: 'article',
                 id: uuidv4(),
                 title: 'خطأ: الرسالة طويلة جدًا',
                 description: `السرية: ${secretMessage.length}/199, الإجمالي: ${queryText.length}/254`,
-                input_message_content: {
-                    message_text: 'الرسالة طويلة جدًا. يرجى مراجعة /help'
-                }
+                input_message_content: { message_text: 'الرسالة طويلة جدًا. يرجى مراجعة /start' }
             };
-            
-            await ctx.answerInlineQuery([lengthErrorResult], { cache_time: 1 });
-            return;
+            return await ctx.answerInlineQuery([lengthErrorResult], { cache_time: 1 });
         }
 
-        // تنظيف قائمة المستخدمين المستهدفين
         const targetUsers = targetUsersStr.split(',')
             .map(user => cleanUsername(user.trim()))
             .filter(user => user.length > 0);
@@ -171,43 +153,37 @@ bot.on('inline_query', async (ctx) => {
                 id: uuidv4(),
                 title: 'خطأ: لم يتم تحديد مستخدمين',
                 description: 'يجب تحديد مستخدم واحد على الأقل.',
-                input_message_content: {
-                    message_text: 'لم يتم تحديد مستخدمين. يرجى مراجعة /help'
-                }
+                input_message_content: { message_text: 'لم يتم تحديد مستخدمين. يرجى مراجعة /start' }
             };
-            
-            await ctx.answerInlineQuery([noUsersResult], { cache_time: 1 });
-            return;
+            return await ctx.answerInlineQuery([noUsersResult], { cache_time: 1 });
         }
 
-        // إنشاء mentions للمستخدمين
         const mentionsStr = createMentions(targetUsers);
-
-        // إنشاء معرف فريد للرسالة وتخزينها
         const msgId = uuidv4();
-        messageStore[msgId] = {
+
+        // **الجديد هنا: حفظ الرسالة في قاعدة البيانات**
+        const newWhisper = new Whisper({
+            messageId: msgId,
             senderId: senderId,
             senderUsername: senderUsername,
             targetUsers: targetUsers,
             secretMessage: secretMessage,
             publicMessage: publicMessage
-        };
+        });
+        await newWhisper.save();
+        console.log(`تم تخزين الرسالة ${msgId} في قاعدة البيانات.`);
 
-        console.log(`تم تخزين الرسالة ${msgId}:`, messageStore[msgId]);
-
-        // إنشاء الزر المضمن
         const keyboard = Markup.inlineKeyboard([
-            Markup.button.callback('إظهار الرد', `whisper_${msgId}`)
+            Markup.button.callback('إظهار الرد (لمرة واحدة)', `whisper_${msgId}`)
         ]);
 
-        // إنشاء نتيجة الاستعلام المضمن
         const result = {
             type: 'article',
             id: msgId,
-            title: 'رسالة همس جاهزة للإرسال',
+            title: 'رسالة همس (تُقرأ مرة واحدة) جاهزة للإرسال',
             description: `موجهة إلى: ${targetUsers.join(', ')}`,
             input_message_content: {
-                message_text: `تم كتابة الرد لـ ${mentionsStr}\n\nعزيزي/تي دوس على الزر حتى تشوف`,
+                message_text: `همسة موجهة إلى ${mentionsStr}\n\nاضغط على الزر أدناه لكشف الرسالة. (يمكن قراءتها مرة واحدة فقط!)`,
                 parse_mode: 'HTML'
             },
             reply_markup: keyboard.reply_markup
@@ -227,44 +203,30 @@ bot.action(/^whisper_(.+)$/, async (ctx) => {
         const clickerId = ctx.from.id.toString();
         const clickerUsername = ctx.from.username ? ctx.from.username.toLowerCase() : null;
 
-        console.log(`تم استلام callback للرسالة: ${msgId} من المستخدم: ${clickerId} (@${clickerUsername})`);
-
-        const messageData = messageStore[msgId];
+        // **الجديد هنا: البحث عن الرسالة في قاعدة البيانات**
+        const messageData = await Whisper.findOne({ messageId: msgId });
 
         if (!messageData) {
-            await ctx.answerCbQuery('عذراً، هذه الرسالة لم تعد متوفرة أو انتهت صلاحيتها.', { show_alert: true });
-            console.warn(`معرف الرسالة ${msgId} غير موجود في المخزن.`);
-            return;
+            return await ctx.answerCbQuery('عزيزي/تي هاي الرسالة تم قرائتها او انتهت صلاحيتها ونحذفت, { show_alert: true });
         }
 
-        let isAuthorized = false;
-        
-        if (clickerId === messageData.senderId) {
-            isAuthorized = true;
-        } else {
-            for (const target of messageData.targetUsers) {
-                if (target === clickerId || (clickerUsername && target === clickerUsername)) {
-                    isAuthorized = true;
-                    break;
-                }
-            }
-        }
-
-        console.log(`حالة التصريح للمستخدم ${clickerId} للرسالة ${msgId}: ${isAuthorized}`);
+        const isAuthorized = messageData.senderId === clickerId || 
+                             messageData.targetUsers.includes(clickerId) ||
+                             (clickerUsername && messageData.targetUsers.includes(clickerUsername));
 
         if (isAuthorized) {
             let messageToShow = messageData.secretMessage;
-            messageToShow += `\n\n(ملاحظة:الرسالة الي قريتها فوك هاي محد يشوفها غيرك لانها سرية اما هاي اللي بين قوسين فكلها تشوفها: '${messageData.publicMessage}')`;
-            
-            if (messageToShow.length > 200) {
-                messageToShow = messageData.secretMessage.substring(0, 150) + '... (الرسالة أطول من اللازم للعرض الكامل هنا)';
-            }
+            messageToShow += `\n\n(هذه الرسالة تم حذفها الآن ولن يتمكن أحد من قراءتها مجدداً)`;
             
             await ctx.answerCbQuery(messageToShow, { show_alert: true });
-            console.log(`تم عرض الرسالة السرية للرسالة ${msgId} للمستخدم ${clickerId}`);
+            
+            // **الجديد هنا: حذف الرسالة بعد قراءتها**
+            await Whisper.deleteOne({ messageId: msgId });
+            console.log(`تم عرض وحذف الرسالة ${msgId} للمستخدم ${clickerId}`);
+
         } else {
             await ctx.answerCbQuery(messageData.publicMessage, { show_alert: true });
-            console.log(`تم عرض الرسالة العامة للرسالة ${msgId} للمستخدم ${clickerId}`);
+            console.log(`تم عرض الرسالة العامة للرسالة ${msgId} للمستخدم غير المصرح له ${clickerId}`);
         }
 
     } catch (error) {
@@ -286,4 +248,3 @@ bot.launch()
 // التعامل مع إيقاف البوت بشكل صحيح
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
-
